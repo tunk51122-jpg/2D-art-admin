@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="my" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>2D ဒိုင်ချုပ် Live စောင့်ကြည့်စနစ် (Master Executive Dashboard)</title>
+  
+  <!-- PWA & Mobile Web App Meta Tags -->
+  <meta name="theme-color" content="#1e293b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="2D Master">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --surface: #1e293b;
+      --surface-subtle: #0f172a;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #facc15;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Padauk', 'Inter', -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding-bottom: 60px;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 12px 16px;
+    }
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .logo {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--danger);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    input, select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-subtle);
+      color: var(--text);
+      font-size: 0.92rem;
+      font-family: inherit;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+    .btn:hover:not(:disabled) { background: var(--primary-hover); }
+    .btn-secondary {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .badge-live {
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--success);
+      border: 1px solid var(--success);
+    }
+    .grid-matrix {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 6px;
+    }
+    .cell {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 4px;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .cell:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      border-color: var(--primary);
+    }
+    .cell-num { font-size: 0.95rem; font-weight: 700; }
+    .cell-amt { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); margin-top: 2px; }
+
+    .cell.tier-0 { background: var(--surface-subtle); }
+    .cell.tier-1 { background: #1e3a5f; border-color: #2563eb; color: #93c5fd; }
+    .cell.tier-2 { background: #422006; border-color: #ca8a04; color: #fef08a; }
+    .cell.tier-3 { background: #450a0a; border-color: #dc2626; color: #fca5a5; }
+
+    .nav-tab-btn {
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .nav-tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .slip-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .slip-card {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .slip-card img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+
+    /* PWA Install Banner Style */
+    #pwaInstallBanner {
+      display: none;
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      max-width: 480px;
+      margin: 0 auto;
+      background: #1e293b;
+      border: 1px solid var(--danger);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      z-index: 10000;
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s;
+      z-index: 1000;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { border-left: 4px solid var(--success); }
+    .toast.error { border-left: 4px solid var(--danger); }
+  </style>
+</head>
+<body>
+
+  <!-- PWA INSTALL BANNER -->
+  <div id="pwaInstallBanner">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+      <div>
+        <strong style="color: var(--danger); font-size: 0.95rem; display: block;">📲 ဖုန်း Screen ပေါ်သို့ Shortcut တင်မည်</strong>
+        <span style="font-size: 0.78rem; color: var(--text-muted);">Admin Dashboard ကို App အဖြစ် ဖုန်းတွင် တင်ထားနိုင်ပါသည်</span>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button type="button" class="btn" style="padding: 6px 14px; font-size: 0.85rem; background: var(--danger);" onclick="triggerPwaInstall()">Install</button>
+        <button type="button" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.85rem;" onclick="dismissPwaBanner()">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Master Gate -->
+  <div id="masterGate" style="max-width: 420px; margin: 90px auto; padding: 0 16px;">
+    <div class="card" style="text-align: center;">
+      <h2 style="color: var(--danger); margin-bottom: 8px;">👑 ဒိုင်ချုပ် စနစ် လုံခြုံရေးဂိတ်</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
+        ပင်မဒိုင်ချုပ် Master PIN နံပါတ် ရိုက်ထည့်ပါ
+      </p>
+      <input type="password" id="masterPinInput" placeholder="Master PIN (Default: 9999)" style="font-size: 1.2rem; text-align: center; letter-spacing: 4px; margin-bottom: 16px;">
+      <button class="btn" style="width: 100%; padding: 12px; background: #dc2626;" onclick="unlockMaster()">ဒိုင်ချုပ် Dashboard ဖွင့်မည်</button>
+    </div>
+  </div>
+
+  <!-- Master Main Dashboard -->
+  <div id="masterMainArea" style="display: none;">
+    <header>
+      <div class="header-inner">
+        <div class="logo">
+          <span>👑 2D Master Executive</span>
+          <span class="badge-live">mster-one (Live)</span>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 10px; color: var(--danger);" onclick="triggerPwaInstall()">📲 Shortcut တင်ရန်</button>
+          <button class="nav-tab-btn active" id="tabBtnHeatmap" onclick="switchView('heatmap')">ထိုးထားသောဂဏန်းများ</button>
+          <button class="nav-tab-btn" id="tabBtnSlips" onclick="switchView('slips')">🖼️ Agent ပြေစာများ</button>
+          <button class="nav-tab-btn" id="tabBtnAgents" onclick="switchView('agents')">👥 Agent စီမံခန့်ခွဲမှု</button>
+          <button class="nav-tab-btn" id="tabBtnLedger" onclick="switchView('ledger')">ဒိုင်ခွဲစာရင်းရှင်းတမ်း</button>
+          <button class="nav-tab-btn" id="tabBtnAnalytics" onclick="switchView('analytics')">📊 Analysis Charts</button>
+          <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;" onclick="openMasterPinModal()">🔑 PIN ပြောင်းမည်</button>
+          <button class="btn" style="font-size: 0.8rem; padding: 6px 12px; background: rgba(239,68,68,0.2); color: var(--danger); border: 1px solid var(--danger);" onclick="lockMaster()">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Top Live Control Bar: Cut-off Clock -->
+    <div style="background: linear-gradient(90deg, #1e3a8a, #0b1120); border-bottom: 1px solid var(--border); padding: 8px 16px; font-size: 0.82rem; color: #fff;">
+      <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <span>🕒 စံတော်ချိန်: <strong id="liveClock">--:--:--</strong></span>
+          <span style="margin-left: 12px;">| ဒိုင်ပိတ်ရန်ကျန်ချိန်: <strong id="lockCountdown" style="color: #facc15;">--</strong></span>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+          <span>Agent အရေအတွက်: <strong id="topAgentCount" style="color:#38bdf8;">0</strong> ယောက်</span>
+        </div>
+      </div>
+    </div>
+
+    <main style="max-width: 1200px; margin: 20px auto; padding: 0 16px;">
+      
+      <!-- Session Selector & Filter Bar -->
+      <div class="card" style="padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <strong style="font-size: 0.9rem; color: var(--primary);">စစ်ထုတ်မည့် စက်ဝန်း/ရက်စွဲ:</strong>
+          <select id="sessionFilterSelect" onchange="applyFilters()" style="width: auto; padding: 6px 12px; font-weight: 600;">
+            <option value="ALL">စက်ဝန်း အားလုံး (All Records)</option>
+          </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <strong style="font-size: 0.9rem; color: var(--text-muted);">ဒိုင်ခွဲ (Agent):</strong>
+          <select id="agentFilterSelect" onchange="applyFilters()" style="width: auto; padding: 6px 12px;">
+            <option value="ALL">ဒိုင်ခွဲအားလုံး ပေါင်းစပ်စာရင်း</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
+        <div class="card" style="margin: 0; text-align: center;">
+          <span style="font-size: 0.78rem; color: var(--text-muted);">ဒိုင်ချုပ် လက်ခံငွေ စုစုပေါင်း (Gross)</span>
+          <div style="font-size: 1.45rem; font-weight: 700; color: var(--primary);" id="kpiGross">0 Ks</div>
+        </div>
+        <div class="card" style="margin: 0; text-align: center;">
+          <span style="font-size: 0.78rem; color: var(--text-muted);">ထိုးထားသော အကွက်အရေအတွက်</span>
+          <div style="font-size: 1.45rem; font-weight: 700;" id="kpiActiveCount">0 / 100</div>
+        </div>
+        <div class="card" style="margin: 0; text-align: center;">
+          <span style="font-size: 0.78rem; color: var(--text-muted);">ငွေအများဆုံး (အန္တရာယ်ရှိ) အကွက်</span>
+          <div style="font-size: 1.45rem; font-weight: 700; color: var(--danger);" id="kpiMaxNum">-</div>
+        </div>
+        <div class="card" style="margin: 0; text-align: center;">
+          <span style="font-size: 0.78rem; color: var(--text-muted);">ပေါက်ပါက အများဆုံးလျော်ရငွေ (x ၈၀ဆ)</span>
+          <div style="font-size: 1.45rem; font-weight: 700; color: var(--danger);" id="kpiMaxPayout">0 Ks</div>
+        </div>
+      </div>
+
+      <!-- VIEW 1: ထိုးထားသော ဂဏန်းများ (အများဆုံး ထိုးထားသည့် ဂဏန်းများ ထိပ်ဆုံးမှ ဦးစားပေးဖော်ပြခြင်း) -->
+      <section id="viewHeatmap" class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <h3 style="font-size: 1.15rem; color: var(--warning);">🔥 အများဆုံး ထိုးထားသော ဂဏန်းများ စာရင်း (အစဉ်လိုက် အမြင့်ဆုံးမှ စီထားသည်)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">ငွေပမာဏ အများဆုံး ထိုးထားသည့် ဂဏန်းများကို ထိပ်ဆုံးမှ ဦးစားပေး တွေ့မြင်ရပါမည်</p>
+          </div>
+          <div style="display: flex; gap: 8px; font-size: 0.75rem; align-items: center;">
+            <span><span style="display:inline-block;width:10px;height:10px;background:#dc2626;border-radius:2px;"></span> &gt; 100k (အန္တရာယ်ရှိ)</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#ca8a04;border-radius:2px;"></span> 20k-100k</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#1e3a5f;border-radius:2px;"></span> &lt; 20k</span>
+          </div>
+        </div>
+
+        <div class="grid-matrix" id="matrixContainer"></div>
+      </section>
+
+      <!-- VIEW 2: Agent ပြေစာများ ကဏ္ဍခွဲ၍ ကြည့်ရှုရန် (Slip Category Gallery) -->
+      <section id="viewSlips" class="card" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="font-size: 1.15rem; color: var(--success);">🖼️ Agent များ ပို့ထားသော KPay / Wave ပြေစာများ</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">ဘယ် Agent က ပို့ထားသည်ကို Category ခွဲ၍ သီးသန့် အလွယ်တကူ စစ်ဆေးနိုင်ပါသည်</p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 0.82rem; color: var(--text-muted);">Agent ရွေးချယ်ရန်:</label>
+            <select id="slipAgentFilter" onchange="renderSlipsView()" style="width: auto; padding: 6px 12px;">
+              <option value="ALL">Agent အားလုံး၏ ပြေစာများ</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="slipsContainer" class="slip-grid"></div>
+      </section>
+
+      <!-- VIEW 3: Agent စီမံခန့်ခွဲမှု (အစု/အလျော့၊ ငွေပမာဏ သတ်မှတ်ချက်၊ ကော်မရှင် %) -->
+      <section id="viewAgents" class="card" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="font-size: 1.15rem; color: #38bdf8;">👥 Agent စီမံခန့်ခွဲမှုစနစ် (အစုအလျော့၊ ငွေပမာဏနှင့် ကော်မရှင် %)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Agent အသစ်ထည့်ခြင်း/ဖျက်ခြင်း၊ Agent တစ်ဦးချင်းစီအလိုက် ကော်မရှင် % နှင့် အများဆုံးထိုးငွေပမာဏ သတ်မှတ်နိုင်ပါသည်</p>
+          </div>
+          <button class="btn" style="background: var(--success);" onclick="openAddAgentModal()">+ Agent အသစ်ထည့်မည်</button>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+            <thead>
+              <tr style="background: var(--surface-subtle); border-bottom: 1px solid var(--border);">
+                <th style="padding: 10px; text-align: left;">Agent အမည်</th>
+                <th style="padding: 10px; text-align: left;">ကော်မရှင် % (Commission)</th>
+                <th style="padding: 10px; text-align: left;">ငွေပမာဏ ကန့်သတ်ချက် (Max Limit)</th>
+                <th style="padding: 10px; text-align: left;">အခြေအနေ</th>
+                <th style="padding: 10px; text-align: center;">လုပ်ဆောင်ချက်</th>
+              </tr>
+            </thead>
+            <tbody id="agentConfigTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VIEW 4: Sub-Agents Financial Ledger -->
+      <section id="viewLedger" class="card" style="display: none;">
+        <h3 style="font-size: 1.15rem; margin-bottom: 14px;">👥 ဒိုင်ခွဲ စာရင်းရှင်းတမ်း (Sub-Agents Financial Ledger)</h3>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+            <thead>
+              <tr style="background: var(--surface-subtle); border-bottom: 1px solid var(--border);">
+                <th style="padding: 10px; text-align: left;">ဒိုင်ခွဲ အမည်</th>
+                <th style="padding: 10px; text-align: left;">ကော်မရှင် %</th>
+                <th style="padding: 10px; text-align: left;">ဘောက်ချာပေါင်း</th>
+                <th style="padding: 10px; text-align: left;">အကွက်ပေါင်း</th>
+                <th style="padding: 10px; text-align: left;">စုစုပေါင်းထိုးကြေး (Gross)</th>
+                <th style="padding: 10px; text-align: left;">ကော်မရှင် (Comm)</th>
+                <th style="padding: 10px; text-align: left;">ဒိုင်ချုပ်သို့ တင်မည့်ငွေ (Net)</th>
+              </tr>
+            </thead>
+            <tbody id="agentLedgerBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VIEW 5: Monthly Business Analytics & Charts -->
+      <section id="viewAnalytics" class="card" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="font-size: 1.15rem;">📊 လစဉ် Business Analysis &amp; Data Graphs</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">ဘယ်ဒိုင်ခွဲက အထိုးအများဆုံးလဲ နှင့် ဘယ်ဂဏန်းတွေ အထိုးအများဆုံးလဲ ခွဲခြမ်းစိတ်ဖြာချက်</p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; background: var(--surface-subtle); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);">
+            <span style="font-size: 0.82rem; font-weight: 700; color: var(--warning);">🏆 ပေါက်ဂဏန်း စမ်းစစ်မည်:</span>
+            <input type="text" id="winNumInput" placeholder="ဂဏန်း (ဥပမာ- 25)" maxlength="2" style="width: 80px; padding: 4px 8px; font-weight: 700; text-align: center;">
+            <button class="btn" style="padding: 4px 10px; font-size: 0.8rem;" onclick="simulateWinningPayout()">တွက်မည်</button>
+          </div>
+        </div>
+
+        <div id="payoutResultBox" style="display: none; background: rgba(239,68,68,0.1); border: 1px solid var(--danger); border-radius: 10px; padding: 14px; margin-bottom: 20px;">
+          <h4 style="color: var(--danger); margin-bottom: 6px;">🎯 ပေါက်ကြေး ရှင်းတမ်း ခွဲခြမ်းစိတ်ဖြာချက်:</h4>
+          <div id="payoutSummaryText" style="font-size: 0.9rem;"></div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px;">
+          <div style="background: var(--surface-subtle); padding: 16px; border-radius: 10px; border: 1px solid var(--border);">
+            <h4 style="font-size: 0.92rem; margin-bottom: 12px; text-align: center; color: var(--primary);">👥 ဒိုင်ခွဲများ၏ ထိုးငွေပမာဏ နှိုင်းယှဉ်ချက် (Agent Volume)</h4>
+            <div style="position: relative; height: 260px;">
+              <canvas id="agentVolumeChart"></canvas>
+            </div>
+          </div>
+
+          <div style="background: var(--surface-subtle); padding: 16px; border-radius: 10px; border: 1px solid var(--border);">
+            <h4 style="font-size: 0.92rem; margin-bottom: 12px; text-align: center; color: var(--warning);">🔥 အထိုးအများဆုံး Top 10 ဂဏန်းများ (Top Exposure Numbers)</h4>
+            <div style="position: relative; height: 260px;">
+              <canvas id="topNumbersChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Agent Add/Edit Modal -->
+  <div id="agentModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 1000;">
+    <div class="card" style="width: 90%; max-width: 440px; margin: 0;">
+      <h3 style="margin-bottom: 12px; font-size: 1.15rem; color: #38bdf8;" id="agentModalTitle">Agent အသစ်ထည့်သွင်းရန်</h3>
+      <input type="hidden" id="editAgentOriginalId">
+      
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 0.8rem; color: var(--text-muted); display:block; margin-bottom:4px;">Agent အမည် (Name / Shop Name):</label>
+        <input type="text" id="modalAgentName" placeholder="ဥပမာ - aung (သို့) ရွှေဆိုင်">
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 0.8rem; color: var(--text-muted); display:block; margin-bottom:4px;">ပေးမည့် ကော်မရှင် % (Commission):</label>
+        <input type="number" id="modalAgentComm" placeholder="ဥပမာ - 15" min="0" max="40" value="15">
+      </div>
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 0.8rem; color: var(--text-muted); display:block; margin-bottom:4px;">အများဆုံး ထိုးငွေ ကန့်သတ်ချက် (Max Limit in Ks):</label>
+        <input type="number" id="modalAgentLimit" placeholder="ဥပမာ - 5000000 (သိန်း ၅၀)" value="5000000">
+      </div>
+
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeAgentModal()">ပိတ်မည်</button>
+        <button class="btn" style="background: var(--success);" onclick="saveAgentConfig()">သိမ်းဆည်းမည်</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full Image Preview Modal -->
+  <div id="imgPreviewModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 2000;" onclick="this.style.display='none'">
+    <div style="text-align: center; max-width: 90%; max-height: 90%;">
+      <img id="fullPreviewImg" style="max-width: 100%; max-height: 80vh; border-radius: 8px; border: 2px solid #fff;">
+      <p style="color: #fff; margin-top: 8px; font-size: 0.9rem;" id="fullPreviewCaption"></p>
+    </div>
+  </div>
+
+  <!-- Master Change PIN Modal -->
+  <div id="masterPinModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 1000;">
+    <div class="card" style="width: 90%; max-width: 400px; margin: 0;">
+      <h3 style="margin-bottom: 12px; font-size: 1.15rem; color: var(--danger);">🔑 ဒိုင်ချုပ် Master PIN အသစ်ပြောင်းမည်</h3>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 0.8rem; color: var(--text-muted);">လက်ရှိ Master PIN:</label>
+        <input type="password" id="oldMasterPin" placeholder="လက်ရှိ PIN">
+      </div>
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 0.8rem; color: var(--text-muted);">Master PIN အသစ်:</label>
+        <input type="password" id="newMasterPin" placeholder="PIN အသစ် ရိုက်ပါ">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeMasterPinModal()">ပိတ်မည်</button>
+        <button class="btn" style="background: #dc2626;" onclick="saveNewMasterPin()">သိမ်းဆည်းမည်</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyD1eGR_83Y19rWQjxbVFIdsBMPY54GapsI",
+      authDomain: "mster-one.firebaseapp.com",
+      projectId: "mster-one",
+      storageBucket: "mster-one.firebasestorage.app",
+      messagingSenderId: "779492694302",
+      appId: "1:779492694302:web:4c5e88f2aadaba4db4110f",
+      measurementId: "G-THL38LG590"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    let currentMasterPin = localStorage.getItem('myanmar_2d_master_pin') || "9999";
+    let ticketsCache = [];
+    let agentsConfig = {};
+    let agentChartInstance = null;
+    let numberChartInstance = null;
+
+    // ==========================================
+    // PWA WEB APP SHORTCUT INSTALL ENGINE
+    // ==========================================
+    let deferredPrompt = null;
+
+    (function injectManifest() {
+      const manifestData = {
+        name: "2D Master Executive",
+        short_name: "2D Master",
+        description: "2D ဒိုင်ချုပ် Live စောင့်ကြည့်စနစ် Dashboard",
+        start_url: window.location.href,
+        display: "standalone",
+        background_color: "#0b1120",
+        theme_color: "#1e293b",
+        icons: [
+          {
+            src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='120' fill='%23dc2626'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='200' fill='%23ffffff'%3EMASTER%3C/text%3E%3C/svg%3E",
+            sizes: "192x192 512x512",
+            type: "image/svg+xml",
+            purpose: "any maskable"
+          }
+        ]
+      };
+      const stringManifest = JSON.stringify(manifestData);
+      const blob = new Blob([stringManifest], { type: 'application/json' });
+      const manifestURL = URL.createObjectURL(blob);
+      const linkTag = document.createElement('link');
+      linkTag.rel = 'manifest';
+      linkTag.href = manifestURL;
+      document.head.appendChild(linkTag);
+    })();
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById('pwaInstallBanner').style.display = 'block';
+    });
+
+    function triggerPwaInstall() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            showToast("ဖုန်း Screen ပေါ်သို့ Admin Dashboard တင်ပြီးပါပြီ!", "success");
+          }
+          deferredPrompt = null;
+          dismissPwaBanner();
+        });
+      } else {
+        alert("ဖုန်း Browser ညာဘက်အပေါ်ရှိ အစက် ၃ စက် (⋮) Menu ကို နှိပ်ပြီး 'Add to Home screen' (သို့မဟုတ်) 'Install App' ကို နှိပ်၍ Screen ပေါ် တင်နိုင်ပါသည်!");
+      }
+    }
+
+    function dismissPwaBanner() {
+      document.getElementById('pwaInstallBanner').style.display = 'none';
+    }
+
+    function unlockMaster() {
+      const entered = document.getElementById('masterPinInput').value.trim();
+      if (entered === currentMasterPin) {
+        document.getElementById('masterGate').style.display = 'none';
+        document.getElementById('masterMainArea').style.display = 'block';
+        showToast("ဒိုင်ချုပ် စနစ်သို့ အောင်မြင်စွာ ဝင်ရောက်ပါပြီ!", "success");
+        initMasterRealtime();
+        startMasterClocks();
+      } else {
+        showToast("Master PIN မှားယွင်းနေပါသည်!", "error");
+      }
+    }
+
+    function lockMaster() {
+      document.getElementById('masterPinInput').value = '';
+      document.getElementById('masterGate').style.display = 'block';
+      document.getElementById('masterMainArea').style.display = 'none';
+    }
+
+    function openMasterPinModal() {
+      document.getElementById('oldMasterPin').value = '';
+      document.getElementById('newMasterPin').value = '';
+      document.getElementById('masterPinModal').style.display = 'flex';
+    }
+
+    function closeMasterPinModal() {
+      document.getElementById('masterPinModal').style.display = 'none';
+    }
+
+    function saveNewMasterPin() {
+      const oldPin = document.getElementById('oldMasterPin').value.trim();
+      const newPin = document.getElementById('newMasterPin').value.trim();
+
+      if (oldPin !== currentMasterPin) {
+        showToast("လက်ရှိ PIN အဟောင်း မှားယွင်းနေပါသည်!", "error");
+        return;
+      }
+      if (newPin.length < 4) {
+        showToast("PIN အသစ်သည် အနည်းဆုံး ၄ လုံး ဖြစ်ရပါမည်!", "error");
+        return;
+      }
+
+      currentMasterPin = newPin;
+      localStorage.setItem('myanmar_2d_master_pin', newPin);
+      closeMasterPinModal();
+      showToast("Master PIN အောင်မြင်စွာ ပြောင်းလဲပြီးပါပြီ!", "success");
+    }
+
+    function startMasterClocks() {
+      setInterval(() => {
+        const now = new Date();
+        document.getElementById('liveClock').innerText = now.toLocaleTimeString('en-US');
+
+        const currentSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+        const morningLock = 12 * 3600;
+        const eveningLock = 16 * 3600 + 28 * 60;
+
+        let diff = 0;
+        let sessionName = "";
+        if (currentSec < morningLock) {
+          diff = morningLock - currentSec;
+          sessionName = "မနက်ပိုင်းပိတ်ရန်";
+        } else if (currentSec < eveningLock) {
+          diff = eveningLock - currentSec;
+          sessionName = "ညနေပိုင်းပိတ်ရန်";
+        } else {
+          diff = morningLock + 86400 - currentSec;
+          sessionName = "မနက်ဖြန် မနက်ပိုင်းပိတ်ရန်";
+        }
+
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+        const pad = n => n.toString().padStart(2, '0');
+        document.getElementById('lockCountdown').innerText = pad(h) + ":" + pad(m) + ":" + pad(s) + " (" + sessionName + ")";
+      }, 1000);
+    }
+
+    function switchView(view) {
+      document.getElementById('tabBtnHeatmap').classList.toggle('active', view === 'heatmap');
+      document.getElementById('tabBtnSlips').classList.toggle('active', view === 'slips');
+      document.getElementById('tabBtnAgents').classList.toggle('active', view === 'agents');
+      document.getElementById('tabBtnLedger').classList.toggle('active', view === 'ledger');
+      document.getElementById('tabBtnAnalytics').classList.toggle('active', view === 'analytics');
+
+      document.getElementById('viewHeatmap').style.display = view === 'heatmap' ? 'block' : 'none';
+      document.getElementById('viewSlips').style.display = view === 'slips' ? 'block' : 'none';
+      document.getElementById('viewAgents').style.display = view === 'agents' ? 'block' : 'none';
+      document.getElementById('viewLedger').style.display = view === 'ledger' ? 'block' : 'none';
+      document.getElementById('viewAnalytics').style.display = view === 'analytics' ? 'block' : 'none';
+
+      if (view === 'slips') renderSlipsView();
+      if (view === 'agents') renderAgentsManager();
+      if (view === 'analytics') renderCharts();
+    }
+
+    // ==========================================
+    // AGENT CONFIGURATION & LIMITS MANAGEMENT
+    // ==========================================
+    function initMasterRealtime() {
+      db.collection("settings").doc("agents_config").onSnapshot((doc) => {
+        if (doc.exists) {
+          agentsConfig = doc.data().list || {};
+        } else {
+          agentsConfig = {};
+        }
+        renderAgentsManager();
+        updateTopAgentCount();
+        applyFilters();
+      });
+
+      db.collection("tickets").orderBy("createdAt", "desc").limit(600)
+        .onSnapshot((snapshot) => {
+          ticketsCache = [];
+          const sessionSet = new Set();
+          const agentSet = new Set();
+
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            data._docId = doc.id;
+            ticketsCache.push(data);
+            if (data.session) sessionSet.add(data.session);
+            if (data.agentName) agentSet.add(data.agentName);
+          });
+
+          agentSet.forEach(aName => {
+            if (!agentsConfig[aName]) {
+              agentsConfig[aName] = { name: aName, commission: 15, maxLimit: 5000000 };
+            }
+          });
+
+          updateFilterDropdowns(sessionSet, agentSet);
+          updateTopAgentCount();
+          applyFilters();
+        }, (err) => {
+          console.error("Firestore listener error:", err);
+          showToast("ဆာဗာ ချိတ်ဆက်မှု အမှား: " + err.message, "error");
+        });
+    }
+
+    function updateTopAgentCount() {
+      const count = Object.keys(agentsConfig).length;
+      document.getElementById('topAgentCount').innerText = count;
+    }
+
+    function openAddAgentModal() {
+      document.getElementById('agentModalTitle').innerText = "Agent အသစ်ထည့်သွင်းရန်";
+      document.getElementById('editAgentOriginalId').value = "";
+      document.getElementById('modalAgentName').value = "";
+      document.getElementById('modalAgentComm').value = "15";
+      document.getElementById('modalAgentLimit').value = "5000000";
+      document.getElementById('agentModal').style.display = "flex";
+    }
+
+    function openEditAgentModal(aName) {
+      const conf = agentsConfig[aName] || { name: aName, commission: 15, maxLimit: 5000000 };
+      document.getElementById('agentModalTitle').innerText = "Agent အချက်အလက် ပြင်ဆင်ရန်";
+      document.getElementById('editAgentOriginalId').value = aName;
+      document.getElementById('modalAgentName').value = conf.name;
+      document.getElementById('modalAgentComm').value = conf.commission;
+      document.getElementById('modalAgentLimit').value = conf.maxLimit;
+      document.getElementById('agentModal').style.display = "flex";
+    }
+
+    function closeAgentModal() {
+      document.getElementById('agentModal').style.display = "none";
+    }
+
+    async function saveAgentConfig() {
+      const originalId = document.getElementById('editAgentOriginalId').value;
+      const name = document.getElementById('modalAgentName').value.trim();
+      const comm = parseFloat(document.getElementById('modalAgentComm').value) || 15;
+      const limit = parseFloat(document.getElementById('modalAgentLimit').value) || 5000000;
+
+      if (!name) {
+        alert("Agent အမည် ဖြည့်စွက်ပါ!");
+        return;
+      }
+
+      if (originalId && originalId !== name) {
+        delete agentsConfig[originalId];
+      }
+
+      agentsConfig[name] = {
+        name: name,
+        commission: comm,
+        maxLimit: limit,
+        updatedAt: Date.now()
+      };
+
+      try {
+        await db.collection("settings").doc("agents_config").set({ list: agentsConfig });
+        closeAgentModal();
+        showToast("Agent အချက်အလက်များ သိမ်းဆည်းပြီးပါပြီ!", "success");
+      } catch (e) {
+        showToast("အမှားဖြစ်ပေါ်ပါသည်: " + e.message, "error");
+      }
+    }
+
+    async function deleteAgent(aName) {
+      if (confirm(`Agent "${aName}" အား စာရင်းမှ ဖျက်ပစ်ရန် သေချာပါသလား?`)) {
+        delete agentsConfig[aName];
+        try {
+          await db.collection("settings").doc("agents_config").set({ list: agentsConfig });
+          showToast(`Agent "${aName}" ကို ဖျက်ပြီးပါပြီ!`, "success");
+        } catch (e) {
+          showToast("အမှားဖြစ်ပေါ်ပါသည်: " + e.message, "error");
+        }
+      }
+    }
+
+    function renderAgentsManager() {
+      const tbody = document.getElementById('agentConfigTableBody');
+      const keys = Object.keys(agentsConfig);
+
+      if (keys.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">Agent မရှိသေးပါ။ Agent အသစ်ထည့်မည် ကို နှိပ်ပါ</td></tr>';
+        return;
+      }
+
+      let html = '';
+      keys.forEach(k => {
+        const ag = agentsConfig[k];
+        html += `
+          <tr style="border-bottom: 1px solid var(--border);">
+            <td style="padding: 10px; font-weight: 700; color: #38bdf8;">${ag.name}</td>
+            <td style="padding: 10px; font-weight: 700; color: var(--success);">${ag.commission}%</td>
+            <td style="padding: 10px; font-weight: 600;">${ag.maxLimit.toLocaleString()} Ks</td>
+            <td style="padding: 10px;"><span class="badge-live">Active</span></td>
+            <td style="padding: 10px; text-align: center;">
+              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem; margin-right: 6px;" onclick="openEditAgentModal('${ag.name}')">✏️ ပြင်မည်</button>
+              <button class="btn" style="padding: 4px 10px; font-size: 0.75rem; background: rgba(239,68,68,0.2); color: var(--danger); border: 1px solid var(--danger);" onclick="deleteAgent('${ag.name}')">🗑️ ဖျက်မည်</button>
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    }
+
+    // ==========================================
+    // AGENT SLIPS CATEGORIZED GALLERY
+    // ==========================================
+    function renderSlipsView() {
+      const filterAgent = document.getElementById('slipAgentFilter').value;
+      const container = document.getElementById('slipsContainer');
+
+      const ticketsWithSlips = ticketsCache.filter(t => {
+        const hasSlip = !!t.slipImage;
+        const matchAgent = (filterAgent === 'ALL' || t.agentName === filterAgent);
+        return hasSlip && matchAgent;
+      });
+
+      if (ticketsWithSlips.length === 0) {
+        container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted);">တင်သွင်းထားသော KPay/Wave ငွေလွှဲပြေစာ မရှိသေးပါ</div>';
+        return;
+      }
+
+      let html = '';
+      ticketsWithSlips.forEach(t => {
+        const timeStr = t.clientTime || (t.createdAt ? new Date(t.createdAt).toLocaleTimeString() : '-');
+        html += `
+          <div class="slip-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="color: #38bdf8; font-size: 0.95rem;">👤 ${t.agentName || 'Unknown'}</strong>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">${timeStr}</span>
+            </div>
+            <img src="${t.slipImage}" alt="Slip" onclick="openFullPreview('${t.slipImage}', '${t.agentName} | ထိုးငွေ: ${(t.gross||0).toLocaleString()} Ks')">
+            <div style="display:flex; justify-content:space-between; font-size: 0.82rem; margin-top: 4px;">
+              <span>ထိုးကြေး: <strong>${(t.gross||0).toLocaleString()} Ks</strong></span>
+              <span style="color: var(--success); font-weight:700;">တင်ငွေ: ${(t.net||0).toLocaleString()} Ks</span>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function openFullPreview(src, caption) {
+      document.getElementById('fullPreviewImg').src = src;
+      document.getElementById('fullPreviewCaption').innerText = caption;
+      document.getElementById('imgPreviewModal').style.display = 'flex';
+    }
+
+    function updateFilterDropdowns(sessionSet, agentSet) {
+      const sessionSelect = document.getElementById('sessionFilterSelect');
+      const curSession = sessionSelect.value;
+      let sessionHtml = '<option value="ALL">စက်ဝန်း အားလုံး (All Records)</option>';
+      sessionSet.forEach(s => sessionHtml += '<option value="' + s + '">' + s + '</option>');
+      sessionSelect.innerHTML = sessionHtml;
+      sessionSelect.value = curSession || 'ALL';
+
+      const agentSelect = document.getElementById('agentFilterSelect');
+      const curAgent = agentSelect.value;
+      let agentHtml = '<option value="ALL">ဒိုင်ခွဲအားလုံး ပေါင်းစပ်စာရင်း</option>';
+      agentSet.forEach(a => agentHtml += '<option value="' + a + '">' + a + '</option>');
+      agentSelect.innerHTML = agentHtml;
+      agentSelect.value = curAgent || 'ALL';
+
+      const slipSelect = document.getElementById('slipAgentFilter');
+      const curSlipAgent = slipSelect.value;
+      let slipHtml = '<option value="ALL">Agent အားလုံး၏ ပြေစာများ</option>';
+      agentSet.forEach(a => slipHtml += '<option value="' + a + '">' + a + '</option>');
+      slipSelect.innerHTML = slipHtml;
+      slipSelect.value = curSlipAgent || 'ALL';
+    }
+
+    function applyFilters() {
+      const selectedSession = document.getElementById('sessionFilterSelect').value;
+      const selectedAgent = document.getElementById('agentFilterSelect').value;
+
+      const filtered = ticketsCache.filter(t => {
+        const matchSession = (selectedSession === 'ALL' || t.session === selectedSession);
+        const matchAgent = (selectedAgent === 'ALL' || t.agentName === selectedAgent);
+        return matchSession && matchAgent;
+      });
+
+      renderHeatmapSorted(filtered);
+      renderLedger(filtered);
+      renderCharts(filtered);
+      renderSlipsView();
+    }
+
+    // =========================================================================
+    // VIEW 1: SORTED NUMBERS EXPOSURE (အများဆုံး ထိုးထားသည့် ဂဏန်းများ ထိပ်ဆုံးမှ ဦးစားပေး)
+    // =========================================================================
+    function renderHeatmapSorted(tickets) {
+      const numMap = {};
+      for (let i = 0; i <= 99; i++) {
+        const str = i < 10 ? ('0' + i) : ('' + i);
+        numMap[str] = 0;
+      }
+
+      let totalGross = 0;
+
+      for (let t of tickets) {
+        if (t.items && Array.isArray(t.items)) {
+          for (let it of t.items) {
+            numMap[it.number] = (numMap[it.number] || 0) + it.amount;
+            totalGross += it.amount;
+          }
+        }
+      }
+
+      const sortedNumbers = Object.entries(numMap).sort((a, b) => b[1] - a[1]);
+
+      let maxNum = '-';
+      let maxAmt = 0;
+      let activeCount = 0;
+
+      for (let [n, amt] of sortedNumbers) {
+        if (amt > 0) {
+          activeCount++;
+          if (amt > maxAmt) {
+            maxAmt = amt;
+            maxNum = n;
+          }
+        }
+      }
+
+      document.getElementById('kpiGross').innerText = totalGross.toLocaleString() + ' Ks';
+      document.getElementById('kpiActiveCount').innerText = activeCount + ' / 100';
+      document.getElementById('kpiMaxNum').innerText = maxAmt > 0 ? (maxNum + ' (' + maxAmt.toLocaleString() + ' Ks)') : '-';
+      document.getElementById('kpiMaxPayout').innerText = (maxAmt * 80).toLocaleString() + ' Ks';
+
+      let matrixHtml = '';
+      for (let [numStr, amt] of sortedNumbers) {
+        let tier = 'tier-0';
+        if (amt > 100000) tier = 'tier-3';
+        else if (amt >= 20000) tier = 'tier-2';
+        else if (amt > 0) tier = 'tier-1';
+
+        const disp = amt > 0 ? (amt >= 1000 ? Math.round(amt / 1000) + 'k' : amt) : '-';
+
+        matrixHtml += `
+          <div class="cell ${tier}" title="အကွက်: ${numStr} | ပမာဏ: ${amt.toLocaleString()} Ks">
+            <div class="cell-num">${numStr}</div>
+            <div class="cell-amt">${disp}</div>
+          </div>
+        `;
+      }
+      document.getElementById('matrixContainer').innerHTML = matrixHtml;
+    }
+
+    function renderLedger(tickets) {
+      const agentLedger = {};
+      for (let t of tickets) {
+        const ag = t.agentName || 'Unknown Agent';
+        if (!agentLedger[ag]) {
+          const cfg = agentsConfig[ag] || { commission: 15, maxLimit: 5000000 };
+          agentLedger[ag] = { tickets: 0, items: 0, gross: 0, commPercent: cfg.commission, comm: 0, net: 0 };
+        }
+        agentLedger[ag].tickets += 1;
+        agentLedger[ag].items += (t.itemCount || 0);
+        agentLedger[ag].gross += (t.gross || 0);
+        
+        const commAmt = Math.round((t.gross || 0) * (agentLedger[ag].commPercent / 100));
+        agentLedger[ag].comm += commAmt;
+        agentLedger[ag].net += ((t.gross || 0) - commAmt);
+      }
+
+      const tbody = document.getElementById('agentLedgerBody');
+      if (Object.keys(agentLedger).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-muted);">လက်ရှိတွင် စာရင်းမရှိသေးပါ</td></tr>';
+        return;
+      }
+
+      let html = '';
+      for (const [ag, stat] of Object.entries(agentLedger)) {
+        html += `
+          <tr style="border-bottom: 1px solid var(--border);">
+            <td style="padding: 10px; font-weight: 700; color: #38bdf8;">${ag}</td>
+            <td style="padding: 10px; font-weight: 700; color: var(--success);">${stat.commPercent}%</td>
+            <td style="padding: 10px;">${stat.tickets} စောင်</td>
+            <td style="padding: 10px;">${stat.items} ကွက်</td>
+            <td style="padding: 10px; color: var(--primary); font-weight: 700;">${stat.gross.toLocaleString()} Ks</td>
+            <td style="padding: 10px; color: var(--text-muted);">${stat.comm.toLocaleString()} Ks</td>
+            <td style="padding: 10px; color: var(--success); font-weight: 700;">${stat.net.toLocaleString()} Ks</td>
+          </tr>
+        `;
+      }
+      tbody.innerHTML = html;
+    }
+
+    function renderCharts(tickets) {
+      const sourceTickets = tickets || ticketsCache;
+      const agentTotals = {};
+      const numberTotals = {};
+
+      for (let t of sourceTickets) {
+        const ag = t.agentName || 'Agent';
+        agentTotals[ag] = (agentTotals[ag] || 0) + (t.gross || 0);
+
+        if (t.items && Array.isArray(t.items)) {
+          for (let it of t.items) {
+            numberTotals[it.number] = (numberTotals[it.number] || 0) + it.amount;
+          }
+        }
+      }
+
+      const agentLabels = Object.keys(agentTotals);
+      const agentData = Object.values(agentTotals);
+
+      const ctxAgent = document.getElementById('agentVolumeChart');
+      if (ctxAgent) {
+        if (agentChartInstance) agentChartInstance.destroy();
+        agentChartInstance = new Chart(ctxAgent, {
+          type: 'bar',
+          data: {
+            labels: agentLabels.length > 0 ? agentLabels : ['No Data'],
+            datasets: [{
+              label: 'ထိုးကြေး စုစုပေါင်း (Ks)',
+              data: agentData.length > 0 ? agentData : [0],
+              backgroundColor: '#3b82f6',
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#94a3b8', font: { size: 10 } } },
+              y: { ticks: { color: '#94a3b8' } }
+            }
+          }
+        });
+      }
+
+      const sortedNums = Object.entries(numberTotals)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+
+      const numLabels = sortedNums.map(x => 'ဂဏန်း ' + x[0]);
+      const numData = sortedNums.map(x => x[1]);
+
+      const ctxNum = document.getElementById('topNumbersChart');
+      if (ctxNum) {
+        if (numberChartInstance) numberChartInstance.destroy();
+        numberChartInstance = new Chart(ctxNum, {
+          type: 'doughnut',
+          data: {
+            labels: numLabels.length > 0 ? numLabels : ['No Bets'],
+            datasets: [{
+              data: numData.length > 0 ? numData : [1],
+              backgroundColor: [
+                '#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4',
+                '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#84cc16'
+              ]
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'right', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } }
+            }
+          }
+        });
+      }
+    }
+
+    function simulateWinningPayout() {
+      const winNum = document.getElementById('winNumInput').value.trim();
+      if (!winNum || winNum.length !== 2) {
+        alert("ပေါက်ဂဏန်း ၂ လုံး အတိအကျ ရိုက်ထည့်ပါ!");
+        return;
+      }
+
+      const selectedSession = document.getElementById('sessionFilterSelect').value;
+      const targetTickets = ticketsCache.filter(t => selectedSession === 'ALL' || t.session === selectedSession);
+
+      let totalWinningBet = 0;
+      const winnersByAgent = {};
+
+      for (let t of targetTickets) {
+        if (t.items && Array.isArray(t.items)) {
+          for (let it of t.items) {
+            if (it.number === winNum) {
+              totalWinningBet += it.amount;
+              winnersByAgent[t.agentName] = (winnersByAgent[t.agentName] || 0) + it.amount;
+            }
+          }
+        }
+      }
+
+      const totalPayout = totalWinningBet * 80;
+      const box = document.getElementById('payoutResultBox');
+      const text = document.getElementById('payoutSummaryText');
+
+      box.style.display = 'block';
+      let agentBreakdown = '';
+      for (const [ag, bet] of Object.entries(winnersByAgent)) {
+        const payoutAmt = (bet * 80).toLocaleString();
+        agentBreakdown += `<li><strong>${ag}</strong>: ထိုးငွေ ${bet.toLocaleString()} Ks (လျော်ကြေး = ${payoutAmt} Ks)</li>`;
+      }
+
+      text.innerHTML = `
+        <div style="font-size: 1rem; margin-bottom: 6px;">
+          ပေါက်ဂဏန်း <strong>"${winNum}"</strong> အတွက် စုစုပေါင်း ပေါက်ကြေး: <strong style="color:var(--danger); font-size:1.2rem;">${totalPayout.toLocaleString()} Ks</strong> 
+          (စုစုပေါင်း ထိုးငွေ: ${totalWinningBet.toLocaleString()} Ks x ၈၀ ဆ)
+        </div>
+        <ul style="margin-left: 20px; font-size: 0.85rem; line-height: 1.6;">
+          ${agentBreakdown || '<li>မည်သည့် ဒိုင်ခွဲတွင်မှ ပေါက်သော အကွက် မရှိပါ (ဒိုင် အပြည့်အဝ မြတ်ပါသည်)။</li>'}
+        </ul>
+      `;
+    }
+
+    function showToast(msg, type) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.className = 'toast show ' + (type || '');
+      setTimeout(() => { t.className = 'toast'; }, 3000);
+    }
+  </script>
+</body>
+</html>
