@@ -14,9 +14,13 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Firebase SDKs (App, Auth, Firestore) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     :root {
       /* Slate & Indigo Professional Minimal Palette */
@@ -123,6 +127,14 @@
       border-radius: 999px;
       background: rgba(244, 63, 94, 0.15);
       color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+    .badge-blocked {
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
       border: 1px solid var(--danger);
     }
 
@@ -268,28 +280,6 @@
       color: #fff;
     }
 
-    /* PWA Install Banner Style */
-    #pwaInstallBanner {
-      display: none;
-      position: fixed;
-      bottom: 16px;
-      left: 16px;
-      right: 16px;
-      max-width: 480px;
-      margin: 0 auto;
-      background: var(--surface);
-      border: 1px solid var(--primary);
-      border-radius: 12px;
-      padding: 14px 16px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-      z-index: 10000;
-      animation: slideUp 0.3s ease;
-    }
-    @keyframes slideUp {
-      from { transform: translateY(100%); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
     .toast {
       position: fixed;
       bottom: 24px;
@@ -311,33 +301,31 @@
 </head>
 <body>
 
-  <!-- PWA INSTALL BANNER -->
-  <div id="pwaInstallBanner">
-    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-      <div>
-        <strong style="color: var(--primary); font-size: 0.95rem; display: block;">📲 ဖုန်း Screen ပေါ်သို့ Shortcut တင်မည်</strong>
-        <span style="font-size: 0.78rem; color: var(--text-muted);">Admin Dashboard ကို App အဖြစ် ဖုန်းတွင် တင်ထားနိုင်ပါသည်</span>
-      </div>
-      <div style="display: flex; gap: 6px;">
-        <button type="button" class="btn" style="padding: 6px 14px; font-size: 0.85rem;" onclick="triggerPwaInstall()">Install</button>
-        <button type="button" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.85rem;" onclick="dismissPwaBanner()">✕</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Master Gate -->
-  <div id="masterGate" style="max-width: 420px; margin: 90px auto; padding: 0 16px;">
+  <!-- ADMIN AUTH GATE: EMAIL & PASSWORD LOGIN -->
+  <div id="masterGate" style="max-width: 440px; margin: 80px auto; padding: 0 16px;">
     <div class="card" style="text-align: center;">
-      <h2 style="color: var(--primary); margin-bottom: 8px;">👑 ဒိုင်ချုပ် စနစ် လုံခြုံရေးဂိတ်</h2>
+      <h2 style="color: var(--primary); margin-bottom: 6px;">👑 ဒိုင်ချုပ် စနစ် လုံခြုံရေးဂိတ်</h2>
       <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
-        ပင်မဒိုင်ချုပ် Master PIN နံပါတ် ရိုက်ထည့်ပါ
+        Admin Gmail နှင့် Password ရိုက်ထည့်၍ အကောင့်ဝင်ရောက်ပါ
       </p>
-      <input type="password" id="masterPinInput" placeholder="Master PIN (Default: 9999)" style="font-size: 1.2rem; text-align: center; letter-spacing: 4px; margin-bottom: 16px;">
-      <button class="btn" style="width: 100%; padding: 12px;" onclick="unlockMaster()">ဒိုင်ချုပ် Dashboard ဖွင့်မည်</button>
+
+      <div style="text-align: left; margin-bottom: 14px;">
+        <label style="font-size: 0.82rem; color: var(--text-muted); display: block; margin-bottom: 6px;">Admin Gmail / Email:</label>
+        <input type="email" id="adminEmailInput" placeholder="ဥပမာ - admin@gmail.com" style="padding: 10px 12px;">
+      </div>
+
+      <div style="text-align: left; margin-bottom: 18px;">
+        <label style="font-size: 0.82rem; color: var(--text-muted); display: block; margin-bottom: 6px;">စကားဝှက် (Password):</label>
+        <input type="password" id="adminPasswordInput" placeholder="Password ရိုက်ထည့်ပါ" style="padding: 10px 12px;">
+      </div>
+
+      <button class="btn" id="btnAdminLogin" style="width: 100%; padding: 12px; font-size: 0.95rem;" onclick="handleAdminEmailLogin()">
+        ဒိုင်ချုပ် Dashboard သို့ ဝင်ရောက်မည်
+      </button>
     </div>
   </div>
 
-  <!-- Master Main Dashboard -->
+  <!-- Master Main Dashboard (Only visible after valid Firebase Auth) -->
   <div id="masterMainArea" style="display: none;">
     <header>
       <div class="header-inner">
@@ -346,12 +334,13 @@
           <span class="badge-live">Live</span>
         </div>
         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <span id="activeAdminEmailDisp" style="font-size: 0.82rem; color: var(--text-muted); padding: 4px 8px; background: var(--surface-subtle); border-radius: 6px;"></span>
           <!-- Dedicated Settings Button -->
           <button class="btn" style="font-size: 0.82rem; padding: 7px 14px; background: #4338ca; border: 1px solid var(--primary);" onclick="openSettingsModal()">
             ⚙️ ဒိုင်ချုပ် ဆက်တင် (Settings)
           </button>
-          <button class="btn btn-secondary" style="font-size: 0.82rem; padding: 7px 12px;" onclick="openMasterPinModal()">🔑 PIN ပြောင်းမည်</button>
-          <button class="btn" style="font-size: 0.82rem; padding: 7px 12px; background: rgba(244,63,94,0.15); color: var(--danger); border: 1px solid var(--danger);" onclick="lockMaster()">Logout</button>
+          <button class="btn btn-secondary" style="font-size: 0.82rem; padding: 7px 12px;" onclick="openChangePasswordModal()">🔑 စကားဝှက် ပြောင်းမည်</button>
+          <button class="btn" style="font-size: 0.82rem; padding: 7px 12px; background: rgba(244,63,94,0.15); color: var(--danger); border: 1px solid var(--danger);" onclick="handleAdminLogout()">Logout</button>
         </div>
       </div>
     </header>
@@ -393,7 +382,7 @@
       </div>
 
       <!-- ========================================================================= -->
-      <!-- SECTION 1: 📊 ဒိုင်ချုပ် စာရင်းအကျဉ်းချုပ် (KPIs Summary) [မြှားနှိပ်မှ အောက်ကျလာမည့် စနစ်] -->
+      <!-- SECTION 1: 📊 ဒိုင်ချုပ် စာရင်းအကျဉ်းချုပ် (KPIs Summary) -->
       <!-- ========================================================================= -->
       <div class="accordion-card open" id="secSummaryCard">
         <div class="accordion-header" onclick="toggleAccordion('secSummaryCard')">
@@ -425,7 +414,7 @@
       </div>
 
       <!-- ========================================================================= -->
-      <!-- SECTION 2: 🎯 ပေါက်ဂဏန်းနှင့် ပေါက်သူများ စစ်ဆေးချက် [မြှားနှိပ်မှ အောက်ကျလာမည့် စနစ်] -->
+      <!-- SECTION 2: 🎯 ပေါက်ဂဏန်းနှင့် ပေါက်သူများ စစ်ဆေးချက် -->
       <!-- ========================================================================= -->
       <div class="accordion-card" id="secWinnerCard">
         <div class="accordion-header" onclick="toggleAccordion('secWinnerCard')">
@@ -448,7 +437,7 @@
       </div>
 
       <!-- ========================================================================= -->
-      <!-- SECTION 3: 🔥 အများဆုံး ထိုးထားသော ဂဏန်းများ (Heatmap) [မြှားနှိပ်မှ အောက်ကျလာမည့် စနစ်] -->
+      <!-- SECTION 3: 🔥 အများဆုံး ထိုးထားသော ဂဏန်းများ (Heatmap) -->
       <!-- ========================================================================= -->
       <div class="accordion-card open" id="secHeatmapCard">
         <div class="accordion-header" onclick="toggleAccordion('secHeatmapCard')">
@@ -527,10 +516,10 @@
   </div>
 
   <!-- ========================================================================= -->
-  <!-- DEDICATED SETTINGS MODAL: BLOCKED NUMBERS & AGENT CONFIG -->
+  <!-- DEDICATED SETTINGS MODAL: BLOCKED NUMBERS, AGENTS & MASTER ADMIN TRANSFER -->
   <!-- ========================================================================= -->
   <div id="settingsModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 2000; padding: 16px;">
-    <div class="card" style="width: 100%; max-width: 780px; margin: 0; max-height: 90vh; display: flex; flex-direction: column;">
+    <div class="card" style="width: 100%; max-width: 860px; margin: 0; max-height: 90vh; display: flex; flex-direction: column;">
       
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
         <h3 style="font-size: 1.15rem; color: var(--primary);">⚙️ ဒိုင်ချုပ် ဆက်တင် (Master Settings)</h3>
@@ -539,7 +528,19 @@
 
       <div style="overflow-y: auto; flex: 1; padding-right: 4px;">
 
-        <!-- 1. BLOCKED NUMBERS SECTION -->
+        <!-- 1. DYNAMIC ADMIN EMAIL TRANSFER SECTION -->
+        <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+          <h4 style="font-size: 0.95rem; color: var(--info); margin-bottom: 6px;">👑 ဒိုင်ချုပ် (Admin) Gmail လွှဲပြောင်းသတ်မှတ်ခြင်း</h4>
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 8px;">
+            လက်ရှိ ဒိုင်ချုပ် Gmail အား အခြား Gmail အသစ်သို့ လွှဲပြောင်းလိုပါက ဤနေရာတွင် ရိုက်ထည့်၍ ပြောင်းလဲနိုင်ပါသည် (Data များ လုံးဝမပျက်စီးပါ)
+          </p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <input type="email" id="masterAdminEmailInput" placeholder="ဥပမာ- newadmin@gmail.com" style="flex: 1; min-width: 220px; padding: 7px 10px;">
+            <button class="btn" style="background: #4338ca;" onclick="saveMasterAdminEmail()">💾 Admin အဖြစ် လွှဲပြောင်းသိမ်းဆည်းမည်</button>
+          </div>
+        </div>
+
+        <!-- 2. BLOCKED NUMBERS SECTION -->
         <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 18px;">
           <h4 style="font-size: 0.95rem; color: var(--danger); margin-bottom: 6px;">🚫 ပိတ်ဂဏန်းများ စီမံခန့်ခွဲမှု (Blocked Numbers)</h4>
           <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
@@ -567,12 +568,12 @@
           </div>
         </div>
 
-        <!-- 2. AGENT LIMITS, COMMISSIONS & MANUAL RESET -->
+        <!-- 3. AGENT LIMITS, COMMISSIONS, BLOCK/UNBLOCK & PASSWORD RESET -->
         <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 10px; padding: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
             <div>
-              <h4 style="font-size: 0.95rem; color: var(--info);">👥 Agent တစ်ဦးချင်းစီ ဘောင် (Limit) နှင့် ကော်မရှင် % ပြင်ဆင်ရန်</h4>
-              <p style="font-size: 0.78rem; color: var(--text-muted);">Agent အလိုက် % နှင့် Limit ကို တိုက်ရိုက် ရိုက်ပြင်ပြီး သိမ်းဆည်းနိုင်ပါသည်</p>
+              <h4 style="font-size: 0.95rem; color: var(--info);">👥 Agent များ စီမံခန့်ခွဲမှု (Limits, Commissions, Block &amp; Password Reset)</h4>
+              <p style="font-size: 0.78rem; color: var(--text-muted);">Agent အလိုက် % နှင့် Limit ပြင်ဆင်ခြင်း၊ အကောင့်ပိတ်/ဖွင့်ခြင်းနှင့် စကားဝှက် Reset ချပေးနိုင်ပါသည်</p>
             </div>
             <button class="btn" style="background: var(--success); font-size: 0.8rem; padding: 6px 12px;" onclick="openAddAgentModal()">+ Agent အသစ်</button>
           </div>
@@ -581,13 +582,13 @@
             <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
               <thead>
                 <tr style="background: var(--surface); border-bottom: 1px solid var(--border);">
-                  <th style="padding: 8px; text-align: left;">Agent အမည်</th>
-                  <th style="padding: 8px; text-align: left; width: 110px;">ကော်မရှင် %</th>
-                  <th style="padding: 8px; text-align: left; width: 160px;">ခွင့်ပြုဘောင် (Ks)</th>
+                  <th style="padding: 8px; text-align: left;">Agent အမည် / Email</th>
+                  <th style="padding: 8px; text-align: left; width: 100px;">ကော်မရှင် %</th>
+                  <th style="padding: 8px; text-align: left; width: 140px;">ခွင့်ပြုဘောင် (Ks)</th>
                   <th style="padding: 8px; text-align: left;">ထိုးပြီးငွေ</th>
                   <th style="padding: 8px; text-align: left;">လက်ကျန်</th>
                   <th style="padding: 8px; text-align: left;">အခြေအနေ</th>
-                  <th style="padding: 8px; text-align: center;">လုပ်ဆောင်ချက်</th>
+                  <th style="padding: 8px; text-align: center;">လုပ်ဆောင်ချက်များ</th>
                 </tr>
               </thead>
               <tbody id="settingsAgentTableBody"></tbody>
@@ -604,14 +605,18 @@
     </div>
   </div>
 
-  <!-- Agent Add Modal -->
+  <!-- Agent Add Modal (Includes Email & Initial Password) -->
   <div id="agentModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 3000;">
-    <div class="card" style="width: 90%; max-width: 420px; margin: 0;">
+    <div class="card" style="width: 90%; max-width: 440px; margin: 0;">
       <h3 style="margin-bottom: 12px; font-size: 1.1rem; color: var(--info);">Agent အသစ် ထည့်သွင်းရန်</h3>
       
       <div style="margin-bottom: 10px;">
         <label style="font-size: 0.8rem; color: var(--text-muted); display:block; margin-bottom:4px;">Agent အမည် (Name):</label>
         <input type="text" id="modalAgentName" placeholder="ဥပမာ- aung">
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="font-size: 0.8rem; color: var(--text-muted); display:block; margin-bottom:4px;">အသုံးပြုမည့် Login Email / Gmail:</label>
+        <input type="email" id="modalAgentEmail" placeholder="ဥပမာ- aung@gmail.com">
       </div>
       <div style="margin-bottom: 10px;">
         <label style="font-size: 0.8rem; color: var(--text-muted); display:block; margin-bottom:4px;">ပေးမည့် ကော်မရှင် %:</label>
@@ -629,21 +634,40 @@
     </div>
   </div>
 
-  <!-- Master Change PIN Modal -->
-  <div id="masterPinModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 3000;">
-    <div class="card" style="width: 90%; max-width: 380px; margin: 0;">
-      <h3 style="margin-bottom: 12px; font-size: 1.1rem; color: var(--primary);">🔑 Master PIN အသစ်ပြောင်းမည်</h3>
-      <div style="margin-bottom: 10px;">
-        <label style="font-size: 0.8rem; color: var(--text-muted);">လက်ရှိ Master PIN:</label>
-        <input type="password" id="oldMasterPin" placeholder="လက်ရှိ PIN">
-      </div>
+  <!-- Admin Reset Password for Specific Agent Modal -->
+  <div id="agentResetPasswordModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 3500;">
+    <div class="card" style="width: 90%; max-width: 400px; margin: 0;">
+      <h3 style="margin-bottom: 10px; font-size: 1.05rem; color: var(--info);">🔑 Agent စကားဝှက် Reset ချပေးမည်</h3>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+        Agent: <strong id="resetTargetAgentName" style="color:var(--text);"></strong> အတွက် Password အသစ် သတ်မှတ်ပေးပါ
+      </p>
+      <input type="hidden" id="resetTargetAgentKey">
       <div style="margin-bottom: 14px;">
-        <label style="font-size: 0.8rem; color: var(--text-muted);">Master PIN အသစ်:</label>
-        <input type="password" id="newMasterPin" placeholder="PIN အသစ် ရိုက်ပါ">
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Password အသစ် (အနည်းဆုံး ၆ လုံး):</label>
+        <input type="password" id="agentNewPassInput" placeholder="Password အသစ် ရိုက်ထည့်ပါ">
       </div>
       <div style="display: flex; gap: 10px; justify-content: flex-end;">
-        <button class="btn btn-secondary" onclick="closeMasterPinModal()">ပိတ်မည်</button>
-        <button class="btn" onclick="saveNewMasterPin()">သိမ်းဆည်းမည်</button>
+        <button class="btn btn-secondary" onclick="closeAgentResetPasswordModal()">ပိတ်မည်</button>
+        <button class="btn" style="background: var(--primary);" onclick="confirmAgentPasswordReset()">အတည်ပြု ပြောင်းလဲမည်</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password Modal for Admin Personal Account -->
+  <div id="adminPasswordModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 3000;">
+    <div class="card" style="width: 90%; max-width: 400px; margin: 0;">
+      <h3 style="margin-bottom: 12px; font-size: 1.1rem; color: var(--primary);">🔑 Admin စကားဝှက် (Password) အသစ်ပြောင်းမည်</h3>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Password အသစ် (အနည်းဆုံး ၆ လုံး):</label>
+        <input type="password" id="newAdminPasswordInput" placeholder="Password အသစ် ရိုက်ပါ">
+      </div>
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Password အသစ်ကို ထပ်မံရိုက်ပါ:</label>
+        <input type="password" id="confirmAdminPasswordInput" placeholder="Password အသစ် အတည်ပြုပါ">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeChangePasswordModal()">ပိတ်မည်</button>
+        <button class="btn" onclick="saveNewAdminPassword()">သိမ်းဆည်းမည်</button>
       </div>
     </div>
   </div>
@@ -664,15 +688,171 @@
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
+    const auth = firebase.auth();
     const db = firebase.firestore();
 
-    let currentMasterPin = localStorage.getItem('myanmar_2d_master_pin') || "9999";
     let ticketsCache = [];
     let agentsConfig = {};
     let blockedNumbersSet = new Set();
     let agentChartInstance = null;
     let numberChartInstance = null;
     let selectedActiveSession = "TODAY_MORNING";
+    let isRealtimeStarted = false;
+    let currentAuthorizedAdminEmail = "";
+
+    // ==========================================
+    // DYNAMIC ROLE-BASED AUTHENTICATION (EMAIL & PASSWORD)
+    // ==========================================
+    auth.onAuthStateChanged(async (user) => {
+      const loginGate = document.getElementById('masterGate');
+      const mainArea = document.getElementById('masterMainArea');
+      const emailDisp = document.getElementById('activeAdminEmailDisp');
+
+      if (user) {
+        try {
+          const roleDoc = await db.collection("settings").doc("system_roles").get();
+          if (roleDoc.exists && roleDoc.data().adminEmail) {
+            currentAuthorizedAdminEmail = roleDoc.data().adminEmail.trim().toLowerCase();
+          } else {
+            currentAuthorizedAdminEmail = user.email.trim().toLowerCase();
+            await db.collection("settings").doc("system_roles").set({
+              adminEmail: currentAuthorizedAdminEmail,
+              updatedAt: Date.now()
+            });
+          }
+
+          if (user.email.trim().toLowerCase() !== currentAuthorizedAdminEmail) {
+            await auth.signOut();
+            showToast("ခွင့်ပြုချက် မရှိပါ! ဤ Gmail သည် ဒိုင်ချုပ် (Admin) အကောင့် မဟုတ်ပါ!", "error");
+            loginGate.style.display = 'block';
+            mainArea.style.display = 'none';
+            return;
+          }
+
+          loginGate.style.display = 'none';
+          mainArea.style.display = 'block';
+          if (emailDisp) emailDisp.innerText = `👤 ${user.email}`;
+          document.getElementById('masterAdminEmailInput').value = currentAuthorizedAdminEmail;
+
+          if (!isRealtimeStarted) {
+            initMasterRealtime();
+            startMasterClocks();
+            isRealtimeStarted = true;
+          }
+        } catch (err) {
+          console.error("Role Verification Error:", err);
+          showToast("လုံခြုံရေး စစ်ဆေးမှု အမှား: " + err.message, "error");
+        }
+      } else {
+        loginGate.style.display = 'block';
+        mainArea.style.display = 'none';
+      }
+    });
+
+    async function handleAdminEmailLogin() {
+      const email = document.getElementById('adminEmailInput').value.trim();
+      const password = document.getElementById('adminPasswordInput').value.trim();
+      const btn = document.getElementById('btnAdminLogin');
+
+      if (!email || !password) {
+        showToast("Email နှင့် Password ပြည့်စုံစွာ ဖြည့်ပါ!", "error");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = "ဝင်ရောက်နေပါသည်...";
+
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+        showToast("အကောင့်ဝင်ရောက်မှု အောင်မြင်ပါသည်!", "success");
+      } catch (error) {
+        console.error("Login Error:", error);
+        let msg = "Login အမှားဖြစ်ပေါ်ပါသည်: " + error.message;
+        if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+          msg = "Email သို့မဟုတ် Password မှားယွင်းနေပါသည်!";
+        } else if (error.code === 'auth/invalid-email') {
+          msg = "Email ပုံစံ မမှန်ကန်ပါ!";
+        }
+        showToast(msg, "error");
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "ဒိုင်ချုပ် Dashboard သို့ ဝင်ရောက်မည်";
+      }
+    }
+
+    async function handleAdminLogout() {
+      try {
+        await auth.signOut();
+        document.getElementById('adminPasswordInput').value = '';
+        showToast("ဒိုင်ချုပ်စနစ်မှ ထွက်ခွာပြီးပါပြီ!", "success");
+      } catch (err) {
+        showToast("Logout အမှား: " + err.message, "error");
+      }
+    }
+
+    async function saveMasterAdminEmail() {
+      const newEmail = document.getElementById('masterAdminEmailInput').value.trim();
+      if (!newEmail || !newEmail.includes('@')) {
+        alert("တရားဝင် Gmail / Email လိပ်စာ ရိုက်ထည့်ပါ!");
+        return;
+      }
+
+      if (confirm(`ဒိုင်ချုပ် (Admin) အကောင့်အား "${newEmail}" သို့ လွှဲပြောင်းရန် သေချာပါသလား?\n(နောင်တွင် အဆိုပါ Gmail အသစ်ဖြင့်သာ ဝင်ရောက်နိုင်ပါတော့မည်)`)) {
+        try {
+          await db.collection("settings").doc("system_roles").set({
+            adminEmail: newEmail.toLowerCase(),
+            updatedAt: Date.now()
+          });
+          currentAuthorizedAdminEmail = newEmail.toLowerCase();
+          showToast(`ဒိုင်ချုပ် Gmail အား "${newEmail}" သို့ အောင်မြင်စွာ လွှဲပြောင်းလိုက်ပါပြီ!`, "success");
+        } catch (e) {
+          showToast("အမှားဖြစ်ပေါ်ပါသည်: " + e.message, "error");
+        }
+      }
+    }
+
+    function openChangePasswordModal() {
+      document.getElementById('newAdminPasswordInput').value = '';
+      document.getElementById('confirmAdminPasswordInput').value = '';
+      document.getElementById('adminPasswordModal').style.display = 'flex';
+    }
+
+    function closeChangePasswordModal() {
+      document.getElementById('adminPasswordModal').style.display = 'none';
+    }
+
+    async function saveNewAdminPassword() {
+      const newPass = document.getElementById('newAdminPasswordInput').value.trim();
+      const confirmPass = document.getElementById('confirmAdminPasswordInput').value.trim();
+
+      if (!newPass || newPass.length < 6) {
+        showToast("Password သည် အနည်းဆုံး ၆ လုံး ရှိရပါမည်!", "error");
+        return;
+      }
+      if (newPass !== confirmPass) {
+        showToast("Password နှစ်ကြိမ် ရိုက်ထည့်မှု မတူညီပါ!", "error");
+        return;
+      }
+
+      const user = auth.currentUser;
+      if (!user) {
+        showToast("အကောင့်ဝင်ရောက်ထားခြင်း မရှိပါ!", "error");
+        return;
+      }
+
+      try {
+        await user.updatePassword(newPass);
+        closeChangePasswordModal();
+        showToast("Password အောင်မြင်စွာ ပြောင်းလဲပြီးပါပြီ!", "success");
+      } catch (error) {
+        console.error("Password update error:", error);
+        if (error.code === 'auth/requires-recent-login') {
+          showToast("လုံခြုံရေးအရ Logout တစ်ကြိမ်လုပ်ပြီး ပြန်လည်ဝင်ရောက်ပေးပါ!", "error");
+        } else {
+          showToast("စကားဝှက်ပြောင်းရာတွင် အမှားဖြစ်ပေါ်ပါသည်: " + error.message, "error");
+        }
+      }
+    }
 
     // Accordion Toggle Function
     function toggleAccordion(cardId) {
@@ -680,102 +860,6 @@
       if (card) {
         card.classList.toggle('open');
       }
-    }
-
-    // PWA Manifest and Install Prompt Engine
-    let deferredPrompt = null;
-    (function injectManifest() {
-      const manifestData = {
-        name: "2D Master Executive",
-        short_name: "2D Master",
-        description: "2D ဒိုင်ချုပ် Live စောင့်ကြည့်စနစ် Dashboard",
-        start_url: window.location.href,
-        display: "standalone",
-        background_color: "#0f172a",
-        theme_color: "#0f172a",
-        icons: [{
-          src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='120' fill='%236366f1'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='200' fill='%23ffffff'%3EMASTER%3C/text%3E%3C/svg%3E",
-          sizes: "192x192 512x512",
-          type: "image/svg+xml",
-          purpose: "any maskable"
-        }]
-      };
-      const blob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
-      const linkTag = document.createElement('link');
-      linkTag.rel = 'manifest';
-      linkTag.href = URL.createObjectURL(blob);
-      document.head.appendChild(linkTag);
-    })();
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      document.getElementById('pwaInstallBanner').style.display = 'block';
-    });
-
-    function triggerPwaInstall() {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        deferredPrompt.userChoice.then((choiceResult) => {
-          if (choiceResult.outcome === 'accepted') {
-            showToast("ဖုန်း Screen ပေါ်သို့ Admin Dashboard တင်ပြီးပါပြီ!", "success");
-          }
-          deferredPrompt = null;
-          dismissPwaBanner();
-        });
-      }
-    }
-
-    function dismissPwaBanner() {
-      document.getElementById('pwaInstallBanner').style.display = 'none';
-    }
-
-    function unlockMaster() {
-      const entered = document.getElementById('masterPinInput').value.trim();
-      if (entered === currentMasterPin) {
-        document.getElementById('masterGate').style.display = 'none';
-        document.getElementById('masterMainArea').style.display = 'block';
-        showToast("ဒိုင်ချုပ် စနစ်သို့ အောင်မြင်စွာ ဝင်ရောက်ပါပြီ!", "success");
-        initMasterRealtime();
-        startMasterClocks();
-      } else {
-        showToast("Master PIN မှားယွင်းနေပါသည်!", "error");
-      }
-    }
-
-    function lockMaster() {
-      document.getElementById('masterPinInput').value = '';
-      document.getElementById('masterGate').style.display = 'block';
-      document.getElementById('masterMainArea').style.display = 'none';
-    }
-
-    function openMasterPinModal() {
-      document.getElementById('oldMasterPin').value = '';
-      document.getElementById('newMasterPin').value = '';
-      document.getElementById('masterPinModal').style.display = 'flex';
-    }
-
-    function closeMasterPinModal() {
-      document.getElementById('masterPinModal').style.display = 'none';
-    }
-
-    function saveNewMasterPin() {
-      const oldPin = document.getElementById('oldMasterPin').value.trim();
-      const newPin = document.getElementById('newMasterPin').value.trim();
-
-      if (oldPin !== currentMasterPin) {
-        showToast("လက်ရှိ PIN အဟောင်း မှားယွင်းနေပါသည်!", "error");
-        return;
-      }
-      if (newPin.length < 4) {
-        showToast("PIN အသစ်သည် အနည်းဆုံး ၄ လုံး ဖြစ်ရပါမည်!", "error");
-        return;
-      }
-
-      currentMasterPin = newPin;
-      localStorage.setItem('myanmar_2d_master_pin', newPin);
-      closeMasterPinModal();
-      showToast("Master PIN အောင်မြင်စွာ ပြောင်းလဲပြီးပါပြီ!", "success");
     }
 
     function startMasterClocks() {
@@ -845,7 +929,6 @@
     // REALTIME FIREBASE INIT
     // ==========================================
     function initMasterRealtime() {
-      // 1. Sync Agents Configuration
       db.collection("settings").doc("agents_config").onSnapshot((doc) => {
         if (doc.exists) {
           agentsConfig = doc.data().list || {};
@@ -857,7 +940,6 @@
         applyFilters();
       });
 
-      // 2. Sync Blocked Numbers List
       db.collection("settings").doc("blocked_numbers").onSnapshot((doc) => {
         if (doc.exists && doc.data().numbers) {
           blockedNumbersSet = new Set(doc.data().numbers);
@@ -867,7 +949,6 @@
         renderBlockedNumbersList();
       });
 
-      // 3. Sync Tickets
       db.collection("tickets").onSnapshot((snapshot) => {
         ticketsCache = [];
         const sessionSet = new Set();
@@ -885,7 +966,7 @@
 
         agentSet.forEach(aName => {
           if (!agentsConfig[aName]) {
-            agentsConfig[aName] = { name: aName, commission: 15, maxLimit: 5000000, resetAt: 0 };
+            agentsConfig[aName] = { name: aName, commission: 15, maxLimit: 5000000, resetAt: 0, isBlocked: false };
           }
         });
 
@@ -1056,7 +1137,7 @@
       container.innerHTML = html;
     }
 
-    // --- Agents In-Line Settings Logic ---
+    // --- Agents In-Line Settings Logic with Block & Reset PW ---
     function renderSettingsAgentTable() {
       const tbody = document.getElementById('settingsAgentTableBody');
       const keys = Object.keys(agentsConfig);
@@ -1084,27 +1165,43 @@
         const maxLimit = ag.maxLimit || 5000000;
         const remaining = Math.max(0, maxLimit - used);
         const isLocked = used >= maxLimit;
+        const isBlocked = ag.isBlocked === true;
 
-        const statusBadge = isLocked 
-          ? `<span class="badge-locked">ဘောင်ပြည့်</span>` 
-          : `<span class="badge-live">Active</span>`;
+        let statusBadge = '';
+        if (isBlocked) {
+          statusBadge = `<span class="badge-blocked">🚫 Blocked</span>`;
+        } else if (isLocked) {
+          statusBadge = `<span class="badge-locked">ဘောင်ပြည့်</span>`;
+        } else {
+          statusBadge = `<span class="badge-live">Active</span>`;
+        }
+
+        const blockBtnText = isBlocked ? '🟢 ဖွင့်' : '🚫 ပိတ်';
+        const blockBtnStyle = isBlocked 
+          ? 'background:rgba(16,185,129,0.15); color:var(--success); border:1px solid var(--success);' 
+          : 'background:rgba(244,63,94,0.15); color:var(--danger); border:1px solid var(--danger);';
 
         html += `
           <tr style="border-bottom: 1px solid var(--border);">
-            <td style="padding: 8px; font-weight: 700; color: var(--info);">${ag.name}</td>
             <td style="padding: 8px;">
-              <input type="number" id="cfgComm_${ag.name}" value="${ag.commission || 15}" min="0" max="40" style="padding:4px 6px; font-size:0.85rem; width:80px; text-align:center;"> %
+              <div style="font-weight: 700; color: var(--info);">${ag.name}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">${ag.email || 'No Email'}</div>
             </td>
             <td style="padding: 8px;">
-              <input type="number" id="cfgLimit_${ag.name}" value="${maxLimit}" step="100000" style="padding:4px 6px; font-size:0.85rem; width:130px; text-align:center;">
+              <input type="number" id="cfgComm_${ag.name}" value="${ag.commission || 15}" min="0" max="40" style="padding:4px 6px; font-size:0.85rem; width:70px; text-align:center;"> %
+            </td>
+            <td style="padding: 8px;">
+              <input type="number" id="cfgLimit_${ag.name}" value="${maxLimit}" step="100000" style="padding:4px 6px; font-size:0.85rem; width:120px; text-align:center;">
             </td>
             <td style="padding: 8px; font-weight: 600; color: var(--warning);">${used.toLocaleString()} Ks</td>
             <td style="padding: 8px; font-weight: 600; color: var(--success);">${remaining.toLocaleString()} Ks</td>
             <td style="padding: 8px;">${statusBadge}</td>
             <td style="padding: 8px; text-align: center; white-space: nowrap;">
-              <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--primary); margin-right: 4px;" onclick="saveSingleAgentRow('${ag.name}')">💾 သိမ်း</button>
-              <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: #2563eb; margin-right: 4px;" onclick="resetAgentLimit('${ag.name}')">🔄 Reset</button>
-              <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: rgba(244,63,94,0.15); color: var(--danger); border: 1px solid var(--danger);" onclick="deleteAgent('${ag.name}')">🗑️ ဖျက်</button>
+              <button class="btn" style="padding: 4px 7px; font-size: 0.75rem; background: var(--primary); margin-right: 3px;" onclick="saveSingleAgentRow('${ag.name}')">💾 သိမ်း</button>
+              <button class="btn" style="padding: 4px 7px; font-size: 0.75rem; background: #2563eb; margin-right: 3px;" onclick="resetAgentLimit('${ag.name}')">🔄 Reset</button>
+              <button class="btn" style="padding: 4px 7px; font-size: 0.75rem; background: #334155; margin-right: 3px;" onclick="openAgentResetPasswordModal('${ag.name}')">🔑 PW ပြင်</button>
+              <button class="btn" style="padding: 4px 7px; font-size: 0.75rem; ${blockBtnStyle} margin-right: 3px;" onclick="toggleAgentBlock('${ag.name}')">${blockBtnText}</button>
+              <button class="btn" style="padding: 4px 7px; font-size: 0.75rem; background: rgba(244,63,94,0.15); color: var(--danger); border: 1px solid var(--danger);" onclick="deleteAgent('${ag.name}')">🗑️</button>
             </td>
           </tr>
         `;
@@ -1117,7 +1214,7 @@
       const limitVal = parseFloat(document.getElementById('cfgLimit_' + aName).value) || 5000000;
 
       if (!agentsConfig[aName]) {
-        agentsConfig[aName] = { name: aName, resetAt: 0 };
+        agentsConfig[aName] = { name: aName, resetAt: 0, isBlocked: false };
       }
       agentsConfig[aName].commission = commVal;
       agentsConfig[aName].maxLimit = limitVal;
@@ -1125,7 +1222,63 @@
 
       try {
         await db.collection("settings").doc("agents_config").set({ list: agentsConfig });
-        showToast(`Agent "${aName}" ၏ ကော်မရှင် (${commVal}%) နှင့် ဘောင် (${limitVal.toLocaleString()} Ks) သိမ်းဆည်းပြီးပါပြီ!`, "success");
+        showToast(`Agent "${aName}" အချက်အလက်များ သိမ်းဆည်းပြီးပါပြီ!`, "success");
+      } catch (e) {
+        showToast("အမှားဖြစ်ပေါ်ပါသည်: " + e.message, "error");
+      }
+    }
+
+    // Toggle Block / Unblock Agent
+    async function toggleAgentBlock(aName) {
+      if (!agentsConfig[aName]) return;
+      const currentState = agentsConfig[aName].isBlocked === true;
+      const newState = !currentState;
+      const actionText = newState ? "ပိတ် (Block)" : "ပြန်ဖွင့် (Unblock)";
+
+      if (confirm(`Agent "${aName}" အား အကောင့် ${actionText} ရန် သေချာပါသလား?`)) {
+        agentsConfig[aName].isBlocked = newState;
+        agentsConfig[aName].updatedAt = Date.now();
+
+        try {
+          await db.collection("settings").doc("agents_config").set({ list: agentsConfig });
+          showToast(`Agent "${aName}" အား ${actionText} လိုက်ပါပြီ!`, "success");
+        } catch (e) {
+          showToast("အမှားဖြစ်ပေါ်ပါသည်: " + e.message, "error");
+        }
+      }
+    }
+
+    // Admin Direct Reset Password for Agent
+    function openAgentResetPasswordModal(aName) {
+      document.getElementById('resetTargetAgentName').innerText = aName;
+      document.getElementById('resetTargetAgentKey').value = aName;
+      document.getElementById('agentNewPassInput').value = '';
+      document.getElementById('agentResetPasswordModal').style.display = 'flex';
+    }
+
+    function closeAgentResetPasswordModal() {
+      document.getElementById('agentResetPasswordModal').style.display = 'none';
+    }
+
+    async function confirmAgentPasswordReset() {
+      const aName = document.getElementById('resetTargetAgentKey').value;
+      const newPass = document.getElementById('agentNewPassInput').value.trim();
+
+      if (!newPass || newPass.length < 6) {
+        showToast("Password သည် အနည်းဆုံး ၆ လုံး ရှိရပါမည်!", "error");
+        return;
+      }
+
+      if (!agentsConfig[aName]) return;
+
+      agentsConfig[aName].passwordResetValue = newPass;
+      agentsConfig[aName].passwordResetAt = Date.now();
+      agentsConfig[aName].updatedAt = Date.now();
+
+      try {
+        await db.collection("settings").doc("agents_config").set({ list: agentsConfig });
+        closeAgentResetPasswordModal();
+        showToast(`Agent "${aName}" အတွက် စကားဝှက်အသစ် သတ်မှတ်ပြီးပါပြီ!`, "success");
       } catch (e) {
         showToast("အမှားဖြစ်ပေါ်ပါသည်: " + e.message, "error");
       }
@@ -1133,6 +1286,7 @@
 
     function openAddAgentModal() {
       document.getElementById('modalAgentName').value = '';
+      document.getElementById('modalAgentEmail').value = '';
       document.getElementById('modalAgentComm').value = '15';
       document.getElementById('modalAgentLimit').value = '5000000';
       document.getElementById('agentModal').style.display = 'flex';
@@ -1144,6 +1298,7 @@
 
     async function saveNewAgent() {
       const name = document.getElementById('modalAgentName').value.trim();
+      const email = document.getElementById('modalAgentEmail').value.trim().toLowerCase();
       const comm = parseFloat(document.getElementById('modalAgentComm').value) || 15;
       const limit = parseFloat(document.getElementById('modalAgentLimit').value) || 5000000;
 
@@ -1154,9 +1309,11 @@
 
       agentsConfig[name] = {
         name: name,
+        email: email || '',
         commission: comm,
         maxLimit: limit,
         resetAt: 0,
+        isBlocked: false,
         updatedAt: Date.now()
       };
 
@@ -1169,7 +1326,6 @@
       }
     }
 
-    // MANUAL RESET FUNCTION
     async function resetAgentLimit(aName) {
       if (confirm(`Agent "${aName}" အတွက် စာရင်းရှင်းပြီးဖြစ်သဖြင့် ထိုးပြီးငွေကို Reset ချပြီး ဘောင်ပြန်ဖွင့်ပေးရန် သေချာပါသလား?`)) {
         if (!agentsConfig[aName]) {
@@ -1239,7 +1395,6 @@
       document.getElementById('kpiMaxNum').innerText = maxAmt > 0 ? (maxNum + ' (' + maxAmt.toLocaleString() + ' Ks)') : '-';
       document.getElementById('kpiMaxPayout').innerText = (maxAmt * 80).toLocaleString() + ' Ks';
 
-      // Agent Numbers Breakdown Banner (Top 5 Numbers for selected Agent)
       const topBanner = document.getElementById('topExposureBanner');
       const top5 = sortedNumbers.filter(x => x[1] > 0).slice(0, 5);
       if (top5.length > 0) {
