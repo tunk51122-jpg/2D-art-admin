@@ -809,7 +809,7 @@
                 </p>
 
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
-                  <input type="text" id="blockedNumInput" placeholder="ဥပမာ- 12, 45, အပူး သို့မဟုတ် 1ထိပ်" style="flex: 1; min-width: 200px;">
+                  <input type="text" id="blockedNumInput" placeholder="ဥပမာ- 12, 45, 1pass, 1ထိပ်, အပူး" style="flex: 1; min-width: 200px;">
                   <button class="btn-primary" style="background: var(--danger);" onclick="addBlockedNumbers()">🔒 ပိတ်မည်</button>
                 </div>
 
@@ -1574,6 +1574,12 @@
 
     // --- Blocked Numbers Logic ---
     function parseBlockedTokens(text) {
+      // Normalize Burmese digits to English digits
+      const burm = {'၀':'0','၁':'1','၂':'2','၃':'3','၄':'4','၅':'5','၆':'6','၇':'7','၈':'8','၉':'9'};
+      text = text.replace(/[၀-၉]/g, d => burm[d] || d);
+      // Normalize space between digit and token e.g. "1 pass" -> "1pass"
+      text = text.replace(/([0-9])\s+(pass|p|ပတ်|ပတ်သီး|ထိပ်|နောက်)/gi, '$1$2');
+
       const tokens = text.split(/[\s,;]+/).filter(Boolean);
       const res = [];
       tokens.forEach(tok => {
@@ -1593,6 +1599,14 @@
         } else if (/^([0-9])နောက်$/.test(tok)) {
           const tail = tok[0];
           for (let i = 0; i <= 9; i++) res.push("" + i + tail);
+        } else if (/^([0-9])(?:pass|p|ပတ်|ပတ်သီး)$/i.test(tok)) {
+          const digit = tok.match(/^([0-9])/)[1];
+          const passSet = new Set();
+          for (let i = 0; i <= 9; i++) {
+            passSet.add("" + digit + i);
+            passSet.add("" + i + digit);
+          }
+          passSet.forEach(n => res.push(n));
         }
       });
       return res;
