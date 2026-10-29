@@ -515,8 +515,16 @@
 
   <div class="app-container">
 
+        <!-- Checking Authentication Screen (Smooth splash to prevent login flash) -->
+    <div id="authCheckingScreen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; text-align: center;">
+      <div style="font-size: 2.2rem; color: var(--primary); margin-bottom: 12px;">
+        <i class="fas fa-spinner fa-spin"></i>
+      </div>
+      <p style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600;">အကောင့် အခြေအနေ စစ်ဆေးနေပါသည်...</p>
+    </div>
+
     <!-- ADMIN AUTH GATE: EMAIL & PASSWORD LOGIN (STRICTLY UNTOUCHED LOGIC) -->
-    <div id="masterGate" style="max-width: 440px; margin: auto; padding: 20px 16px; width: 100%;">
+    <div id="masterGate" style="display: none; max-width: 440px; margin: auto; padding: 20px 16px; width: 100%;">
       <div class="panel" style="text-align: center; box-shadow: var(--shadow-md);">
         <div style="margin-bottom: 12px; color: var(--primary); font-size: 2.2rem;">
           <i class="fas fa-user-shield"></i>
@@ -1207,6 +1215,7 @@
       firebase.initializeApp(firebaseConfig);
     }
     const auth = firebase.auth();
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e => console.warn("Persistence error:", e));
     const db = firebase.firestore();
 
     let ticketsCache = [];
@@ -1222,6 +1231,9 @@
     // DYNAMIC ROLE-BASED AUTHENTICATION (STRICTLY UNTOUCHED)
     // ==========================================
     auth.onAuthStateChanged(async (user) => {
+      const checkingScreen = document.getElementById('authCheckingScreen');
+      if (checkingScreen) checkingScreen.style.display = 'none';
+
       const loginGate = document.getElementById('masterGate');
       const mainArea = document.getElementById('masterMainArea');
       const emailDisp = document.getElementById('activeAdminEmailDisp');
@@ -1231,16 +1243,24 @@
           const roleDoc = await db.collection("settings").doc("system_roles").get();
           if (roleDoc.exists && roleDoc.data().adminEmail) {
             currentAuthorizedAdminEmail = roleDoc.data().adminEmail.trim().toLowerCase();
+            try { localStorage.setItem('myanmar_2d_cached_admin_email', currentAuthorizedAdminEmail); } catch(e){}
           } else {
-            currentAuthorizedAdminEmail = user.email.trim().toLowerCase();
-            await db.collection("settings").doc("system_roles").set({
-              adminEmail: currentAuthorizedAdminEmail,
-              updatedAt: Date.now()
-            });
+            let cachedAdmin = null;
+            try { cachedAdmin = localStorage.getItem('myanmar_2d_cached_admin_email'); } catch(e){}
+            if (cachedAdmin) {
+              currentAuthorizedAdminEmail = cachedAdmin;
+            } else {
+              currentAuthorizedAdminEmail = user.email.trim().toLowerCase();
+              await db.collection("settings").doc("system_roles").set({
+                adminEmail: currentAuthorizedAdminEmail,
+                updatedAt: Date.now()
+              });
+              try { localStorage.setItem('myanmar_2d_cached_admin_email', currentAuthorizedAdminEmail); } catch(e){}
+            }
           }
 
           if (user.email.trim().toLowerCase() !== currentAuthorizedAdminEmail) {
-            await auth.signOut();
+            // Do NOT call auth.signOut() automatically to avoid destroying the session
             showToast("ခွင့်ပြုချက် မရှိပါ! ဤ Gmail သည် ဒိုင်ချုပ် (Admin) အကောင့် မဟုတ်ပါ!", "error");
             loginGate.style.display = 'block';
             mainArea.style.display = 'none';
@@ -1259,7 +1279,23 @@
           }
         } catch (err) {
           console.error("Role Verification Error:", err);
-          showToast("လုံခြုံရေး စစ်ဆေးမှု အမှား: " + err.message, "error");
+          let cachedAdmin = null;
+          try { cachedAdmin = localStorage.getItem('myanmar_2d_cached_admin_email'); } catch(e){}
+          if (cachedAdmin && user.email.trim().toLowerCase() === cachedAdmin) {
+            currentAuthorizedAdminEmail = cachedAdmin;
+            loginGate.style.display = 'none';
+            mainArea.style.display = 'flex';
+            if (emailDisp) emailDisp.innerText = `👤 ${user.email}`;
+            if (!isRealtimeStarted) {
+              initMasterRealtime();
+              startMasterClocks();
+              isRealtimeStarted = true;
+            }
+          } else {
+            showToast("လုံခြုံရေး စစ်ဆေးမှု အမှား: " + err.message, "error");
+            loginGate.style.display = 'block';
+            mainArea.style.display = 'none';
+          }
         }
       } else {
         loginGate.style.display = 'block';
@@ -1300,6 +1336,7 @@
 
     async function handleAdminLogout() {
       try {
+        try { localStorage.removeItem('myanmar_2d_cached_admin_email'); } catch(e){}
         await auth.signOut();
         document.getElementById('adminPasswordInput').value = '';
         showToast("ဒိုင်ချုပ်စနစ်မှ ထွက်ခွာပြီးပါပြီ!", "success");
